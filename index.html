@@ -123,6 +123,10 @@ button.small{padding:7px 11px; font-size:11px;}
   font-size:11.5px; cursor:pointer; color:var(--navy); font-weight:600;
 }
 .flavor-chip.selected{background:var(--navy); color:var(--mustard); border-color:var(--navy);}
+.flavor-chip.custom{border-style:dashed;}
+.custom-flavor-row{display:flex; gap:6px; margin-top:8px;}
+.custom-flavor-row input{flex:1;}
+.custom-flavor-row button{white-space:nowrap;}
 .detail-hero{
   height:130px; border-radius:10px; margin-bottom:14px; display:flex; align-items:flex-end;
   padding:14px; background:var(--navy); position:relative; overflow:hidden;
@@ -165,10 +169,12 @@ button.small{padding:7px 11px; font-size:11px;}
 .install-banner p{font-size:12.5px; line-height:1.4;}
 .install-banner button{white-space:nowrap;}
 .install-banner .dismiss{background:none; color:#c8cfe0; font-size:20px; padding:0 4px; text-transform:none;}
-.autofill-badge{display:inline-block; background:var(--teal); color:#fff; font-size:9.5px; padding:2px 7px; border-radius:10px; margin-left:6px; text-transform:none; font-weight:700; vertical-align:middle;}
+.backup-note{background:var(--cream); border-left:4px solid var(--rust); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.5;}
+.version-tag{position:fixed; bottom:4px; left:6px; font-size:9px; color:#00000055; z-index:1;}
 </style>
 </head>
 <body>
+<div class="version-tag">v9</div>
 <div class="app">
   <header>
     <h1><span>Cellar</span> & Cup</h1>
@@ -234,6 +240,16 @@ button.small{padding:7px 11px; font-size:11px;}
   </div>
 
   <div class="section" id="section-stats">
+    <div class="section-divider" style="margin-top:0"><h3>Backup & Restore</h3></div>
+    <div class="backup-note">Your collection lives only in this browser's local storage. It can be lost if you clear site data, switch browsers, or after long periods of inactivity. Export a backup regularly — especially before clearing any cache.</div>
+    <div class="scan-row">
+      <button class="teal" id="export-json-btn">Export Backup (JSON)</button>
+      <button class="secondary" id="export-csv-btn">Export as CSV</button>
+    </div>
+    <div class="scan-row">
+      <button class="accent" id="import-backup-btn" style="width:100%">Import Backup (JSON)</button>
+    </div>
+    <input type="file" id="import-file-input" accept=".json,application/json" style="display:none;">
     <div id="insights-content"></div>
   </div>
 </div>
@@ -303,6 +319,7 @@ let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || { coffee: []
 let currentCategory = 'coffee';
 let editingId = null;
 let selectedFlavors = [];
+let currentFlavorBaseList = [];
 let photoData = '';
 let brewLogs = [];
 let scanStream = null;
@@ -563,12 +580,34 @@ function ratingSliderHTML(item){
 
 function flavorPickerHTML(list, item){
   selectedFlavors = item?.flavors ? [...item.flavors] : [];
+  currentFlavorBaseList = list;
   return `
-  <div class="form-row"><label>Flavor notes (tap to select)</label>
-    <div class="flavor-tags" id="flavor-tags">
-      ${list.map(f=>`<span class="flavor-chip ${selectedFlavors.includes(f)?'selected':''}" data-f="${f}">${f}</span>`).join('')}
+  <div class="form-row"><label>Flavor notes (tap to select, or add your own)</label>
+    <div class="flavor-tags" id="flavor-tags"></div>
+    <div class="custom-flavor-row">
+      <input type="text" id="custom-flavor-input" placeholder="Type a custom flavor note...">
+      <button type="button" class="teal small" id="add-custom-flavor-btn">Add</button>
     </div>
   </div>`;
+}
+
+function renderFlavorChips(){
+  const container = document.getElementById('flavor-tags');
+  if (!container) return;
+  const allTags = [...currentFlavorBaseList];
+  selectedFlavors.forEach(f => { if (!allTags.includes(f)) allTags.push(f); });
+  container.innerHTML = allTags.map(f => {
+    const isCustom = !currentFlavorBaseList.includes(f);
+    return `<span class="flavor-chip ${selectedFlavors.includes(f)?'selected':''} ${isCustom?'custom':''}" data-f="${f}">${f}</span>`;
+  }).join('');
+  container.querySelectorAll('.flavor-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const f = chip.dataset.f;
+      if (selectedFlavors.includes(f)) selectedFlavors = selectedFlavors.filter(x=>x!==f);
+      else selectedFlavors.push(f);
+      renderFlavorChips();
+    });
+  });
 }
 
 function photoInputHTML(item){
@@ -581,13 +620,23 @@ function photoInputHTML(item){
 }
 
 function attachFormListeners(cat){
-  document.querySelectorAll('.flavor-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      const f = chip.dataset.f;
-      if (selectedFlavors.includes(f)){ selectedFlavors = selectedFlavors.filter(x=>x!==f); chip.classList.remove('selected'); }
-      else { selectedFlavors.push(f); chip.classList.add('selected'); }
-    });
+  renderFlavorChips();
+
+  const customInput = document.getElementById('custom-flavor-input');
+  const addCustomBtn = document.getElementById('add-custom-flavor-btn');
+  function addCustomFlavor(){
+    const val = customInput.value.trim();
+    if (!val) return;
+    if (!selectedFlavors.includes(val)) selectedFlavors.push(val);
+    customInput.value = '';
+    renderFlavorChips();
+    customInput.focus();
+  }
+  addCustomBtn.addEventListener('click', addCustomFlavor);
+  customInput.addEventListener('keypress', e=>{
+    if (e.key === 'Enter'){ e.preventDefault(); addCustomFlavor(); }
   });
+
   const photoInput = document.getElementById('f-photo');
   if (photoInput){
     photoInput.addEventListener('change', e=>{
@@ -702,6 +751,88 @@ function renderBrewLogsListReadonly(logs){
 
 document.getElementById('detail-close').addEventListener('click', ()=>document.getElementById('detail-overlay').classList.remove('active'));
 document.getElementById('detail-overlay').addEventListener('click', e=>{ if(e.target.id==='detail-overlay') e.currentTarget.classList.remove('active'); });
+
+// ---------- BACKUP & RESTORE ----------
+function exportBackupJSON(){
+  const dataStr = JSON.stringify(db, null, 2);
+  const blob = new Blob([dataStr], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cellar-cup-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSVField(v){
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+
+function exportBackupCSV(){
+  const rows = [['Category','Name','Brand/Distillery','Origin/Region','Process/Type','Roast Level/ABV','Roast Date/Age','Price (HKD)','Status','Rating','Flavors','Notes','Brew Log Count']];
+  ['coffee','whisky'].forEach(cat=>{
+    (db[cat]||[]).forEach(it=>{
+      rows.push([
+        cat, it.name||'', it.brand||'', it.origin||'', it.process||'', it.roast||'', it.roastDate||'',
+        it.price||'', statusLabel(it.status)||'', it.rating||'', (it.flavors||[]).join('; '), it.notes||'',
+        cat==='coffee' ? (it.brewLogs ? it.brewLogs.length : 0) : ''
+      ]);
+    });
+  });
+  const csv = rows.map(r=>r.map(toCSVField).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cellar-cup-export-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFile(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      if (!parsed || !Array.isArray(parsed.coffee) || !Array.isArray(parsed.whisky)){
+        alert('This file does not look like a valid Cellar & Cup backup (expected "coffee" and "whisky" lists).');
+        return;
+      }
+      const replaceAll = confirm('Click OK to REPLACE all current data with this backup, or Cancel to MERGE (add these items alongside what you already have).');
+      if (replaceAll){
+        db = parsed;
+      } else {
+        const existingCoffeeIds = new Set(db.coffee.map(i=>i.id));
+        const existingWhiskyIds = new Set(db.whisky.map(i=>i.id));
+        parsed.coffee.forEach(i => { if (i && i.id && !existingCoffeeIds.has(i.id)) db.coffee.push(i); });
+        parsed.whisky.forEach(i => { if (i && i.id && !existingWhiskyIds.has(i.id)) db.whisky.push(i); });
+      }
+      save();
+      renderList('coffee');
+      renderList('whisky');
+      renderInsights();
+      alert('Backup imported successfully.');
+    }catch(err){
+      alert('Failed to read backup file: ' + err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('export-json-btn').addEventListener('click', exportBackupJSON);
+document.getElementById('export-csv-btn').addEventListener('click', exportBackupCSV);
+document.getElementById('import-backup-btn').addEventListener('click', ()=>document.getElementById('import-file-input').click());
+document.getElementById('import-file-input').addEventListener('change', importBackupFile);
 
 // ---------- SCAN: CAMERA + UPLOAD ----------
 document.getElementById('coffee-scan-barcode').addEventListener('click', ()=>startScan('coffee','barcode'));
