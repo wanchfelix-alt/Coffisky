@@ -133,7 +133,7 @@ button.small{padding:7px 11px; font-size:11px;}
 .detail-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1.5px solid var(--border); font-size:13.5px;}
 .detail-row span:first-child{color:var(--muted); font-weight:600;}
 .detail-row span:last-child{color:var(--navy); font-weight:700;}
-.notes-box{background:var(--cream); border-left:4px solid var(--mustard); border-radius:6px; padding:12px; margin-top:10px; font-size:13.5px; line-height:1.5;}
+.notes-box{background:var(--cream); border-left:4px solid var(--mustard); border-radius:6px; padding:12px; margin-top:10px; font-size:13.5px; line-height:1.5; white-space:pre-wrap;}
 .actions-row{display:flex; gap:8px; margin-top:16px;}
 .actions-row button{flex:1;}
 .sort-bar{display:flex; justify-content:flex-end; margin-bottom:10px;}
@@ -141,9 +141,20 @@ button.small{padding:7px 11px; font-size:11px;}
 .photo-preview{width:100%; height:120px; border-radius:8px; object-fit:cover; margin-top:8px; display:none; border:2px solid var(--navy);}
 .scan-modal-video{width:100%; border-radius:8px; background:#000; margin-bottom:10px;}
 .scan-status{font-size:12.5px; color:var(--muted); text-align:center; margin:8px 0;}
-.scan-divider{display:flex; align-items:center; gap:10px; margin:12px 0; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;}
-.scan-divider::before, .scan-divider::after{content:''; flex:1; height:1px; background:var(--border);}
+.scan-choice{display:flex; flex-direction:column; gap:12px; padding:10px 0;}
+.scan-choice-btn{
+  display:flex; align-items:center; gap:14px; padding:18px; border:2px solid var(--navy); border-radius:10px;
+  background:var(--white); cursor:pointer; text-align:left;
+}
+.scan-choice-btn:hover{background:var(--cream);}
+.scan-choice-icon{
+  width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0; background:var(--navy); color:var(--mustard);
+}
+.scan-choice-text b{display:block; color:var(--navy); font-size:14px; text-transform:none; letter-spacing:0;}
+.scan-choice-text span{display:block; color:var(--muted); font-size:12px; margin-top:2px;}
 .upload-preview{width:100%; max-height:220px; object-fit:contain; border-radius:8px; margin-top:10px; display:none; border:2px solid var(--navy); background:var(--cream);}
+.back-link{color:var(--teal); font-size:12.5px; font-weight:700; text-transform:uppercase; cursor:pointer; display:inline-block; margin-bottom:10px;}
 .section-divider{
   margin:22px 0 12px; padding-top:14px; border-top:3px solid var(--navy);
   display:flex; align-items:center; gap:8px;
@@ -165,6 +176,8 @@ button.small{padding:7px 11px; font-size:11px;}
 .install-banner p{font-size:12.5px; line-height:1.4;}
 .install-banner button{white-space:nowrap;}
 .install-banner .dismiss{background:none; color:#c8cfe0; font-size:20px; padding:0 4px; text-transform:none;}
+.ocr-review-box{background:var(--cream); border:1.5px solid var(--teal); border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px;}
+.ocr-review-box b{color:var(--navy);}
 </style>
 </head>
 <body>
@@ -272,17 +285,36 @@ button.small{padding:7px 11px; font-size:11px;}
       <h2 id="scan-title">Scan</h2>
       <button class="close-btn" id="scan-close">×</button>
     </div>
-    <video id="scan-video" class="scan-modal-video" autoplay playsinline muted></video>
-    <canvas id="scan-canvas" style="display:none;"></canvas>
-    <div class="scan-status" id="scan-status">Point your camera at the barcode</div>
-    <div class="actions-row">
-      <button class="secondary" id="scan-capture">Capture</button>
-      <button id="scan-cancel">Cancel</button>
+
+    <div id="scan-choice" class="scan-choice">
+      <div class="scan-choice-btn" id="choice-camera">
+        <div class="scan-choice-icon">&#128247;</div>
+        <div class="scan-choice-text"><b>Open Camera</b><span>Scan live using your device camera</span></div>
+      </div>
+      <div class="scan-choice-btn" id="choice-upload">
+        <div class="scan-choice-icon">&#128193;</div>
+        <div class="scan-choice-text"><b>Upload Image</b><span>Choose an existing photo from your device</span></div>
+      </div>
     </div>
-    <div class="scan-divider">or</div>
-    <button type="button" class="accent" id="scan-upload-btn" style="width:100%">Upload Image Instead</button>
+
+    <div id="scan-camera-area" style="display:none;">
+      <span class="back-link" id="scan-back-1">&larr; Back</span>
+      <video id="scan-video" class="scan-modal-video" autoplay playsinline muted></video>
+      <div class="scan-status" id="scan-status-camera">Point your camera at the target</div>
+      <div class="actions-row">
+        <button class="secondary" id="scan-capture">Capture</button>
+        <button id="scan-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="scan-upload-area" style="display:none;">
+      <span class="back-link" id="scan-back-2">&larr; Back</span>
+      <div class="scan-status" id="scan-status-upload">Processing uploaded image...</div>
+      <img id="scan-upload-preview" class="upload-preview">
+    </div>
+
+    <canvas id="scan-canvas" style="display:none;"></canvas>
     <input type="file" id="scan-file-input" accept="image/*" style="display:none;">
-    <img id="scan-upload-preview" class="upload-preview">
   </div>
 </div>
 
@@ -295,6 +327,13 @@ const WHISKY_FLAVORS = ['Peat','Smoke','Vanilla','Honey','Sherry','Oak','Fruit',
 const POUR_OVER_GEAR = ['Hario V60','Kalita Wave','Chemex','Origami','Aeropress','Melitta','Clever Dripper','Orea','April Brewer','Other'];
 const FILTER_TYPES = ['Paper - bleached','Paper - unbleached','Cloth','Metal mesh','Abaca'];
 const GRIND_SIZES = ['Extra Fine','Fine','Medium-Fine','Medium','Medium-Coarse','Coarse'];
+
+const COFFEE_ORIGINS = ['Ethiopia','Kenya','Colombia','Brazil','Guatemala','Costa Rica','Panama','Honduras','El Salvador','Rwanda','Burundi','Yemen','Indonesia','Sumatra','Sulawesi','Java','Peru','Bolivia','Ecuador','Nicaragua','Mexico','Tanzania','Uganda','India','Papua New Guinea','China','Vietnam','Jamaica','Hawaii','Malawi','Zambia'];
+const COFFEE_PROCESS_KEYWORDS = [['anaerobic','Anaerobic'],['washed','Washed'],['fully washed','Washed'],['wet process','Washed'],['natural','Natural'],['dry process','Natural'],['honey','Honey'],['pulped natural','Honey']];
+const COFFEE_ROAST_KEYWORDS = [['medium-light','Medium-Light'],['medium light','Medium-Light'],['medium-dark','Medium-Dark'],['medium dark','Medium-Dark'],['light roast','Light'],['dark roast','Dark'],['medium roast','Medium'],['light','Light'],['dark','Dark'],['medium','Medium']];
+
+const WHISKY_REGIONS = ['Speyside','Islay','Highland','Highlands','Lowland','Lowlands','Campbeltown','Islands','Scotland','Ireland','Japan','Taiwan','India','Kentucky','Tennessee','USA','America','France','Cognac'];
+const WHISKY_TYPE_KEYWORDS = [['single malt','Single Malt'],['blended malt','Blended'],['blended whisky','Blended'],['blended scotch','Blended'],['bourbon','Bourbon'],['rye whiskey','Rye'],['rye','Rye'],['rum','Rum'],['gin','Gin'],['cognac','Cognac'],['mezcal','Mezcal/Tequila'],['tequila','Mezcal/Tequila']];
 
 let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || { coffee: [], whisky: [] };
 let currentCategory = 'coffee';
@@ -602,12 +641,14 @@ function attachFormListeners(cat){
   if (cat === 'coffee') attachBrewLogListeners();
 }
 
-function openForm(cat, id){
+function openForm(cat, id, prefillNote){
   editingId = id;
   currentCategory = cat;
   const item = id ? db[cat].find(i=>i.id===id) : null;
   document.getElementById('modal-title').textContent = (id? 'Edit ' : 'Add ') + (cat==='coffee'?'coffee bean':'bottle');
-  document.getElementById('modal-body').innerHTML = (cat==='coffee' ? coffeeFormHTML(item) : whiskyFormHTML(item)) + `
+  document.getElementById('modal-body').innerHTML =
+    (prefillNote ? `<div class="ocr-review-box">${prefillNote}</div>` : '') +
+    (cat==='coffee' ? coffeeFormHTML(item) : whiskyFormHTML(item)) + `
     <div class="actions-row">
       ${id ? '<button class="secondary" onclick="deleteItem(\''+cat+'\',\''+id+'\')">Delete</button>' : ''}
       <button onclick="submitForm()">Save</button>
@@ -700,37 +741,52 @@ function renderBrewLogsListReadonly(logs){
 document.getElementById('detail-close').addEventListener('click', ()=>document.getElementById('detail-overlay').classList.remove('active'));
 document.getElementById('detail-overlay').addEventListener('click', e=>{ if(e.target.id==='detail-overlay') e.currentTarget.classList.remove('active'); });
 
-// ---------- SCAN: CAMERA + UPLOAD ----------
+// ---------- SCAN: CHOICE FIRST, THEN CAMERA OR UPLOAD ----------
 document.getElementById('coffee-scan-barcode').addEventListener('click', ()=>startScan('coffee','barcode'));
 document.getElementById('coffee-scan-label').addEventListener('click', ()=>startScan('coffee','label'));
 document.getElementById('whisky-scan-barcode').addEventListener('click', ()=>startScan('whisky','barcode'));
 document.getElementById('whisky-scan-label').addEventListener('click', ()=>startScan('whisky','label'));
 document.getElementById('scan-close').addEventListener('click', stopScan);
 document.getElementById('scan-cancel').addEventListener('click', stopScan);
-document.getElementById('scan-upload-btn').addEventListener('click', ()=>document.getElementById('scan-file-input').click());
+document.getElementById('choice-camera').addEventListener('click', openCameraArea);
+document.getElementById('choice-upload').addEventListener('click', ()=>document.getElementById('scan-file-input').click());
+document.getElementById('scan-back-1').addEventListener('click', backToChoice);
+document.getElementById('scan-back-2').addEventListener('click', backToChoice);
 document.getElementById('scan-file-input').addEventListener('change', handleUploadedImage);
 
-async function startScan(cat, mode){
+function startScan(cat, mode){
   scanTargetCat = cat;
   scanMode = mode;
   document.getElementById('scan-title').textContent = mode==='barcode' ? 'Scan Barcode' : 'Scan Label Text';
-  document.getElementById('scan-status').textContent = mode==='barcode'
-    ? (barcodeDetectorSupported ? 'Point your camera at the barcode, or upload a photo below' : 'Live barcode scan not supported on this browser — upload a photo below')
-    : 'Frame the label, tap Capture, or upload a photo below';
+  document.getElementById('scan-choice').style.display = 'flex';
+  document.getElementById('scan-camera-area').style.display = 'none';
+  document.getElementById('scan-upload-area').style.display = 'none';
   document.getElementById('scan-upload-preview').style.display = 'none';
   document.getElementById('scan-file-input').value = '';
   document.getElementById('scan-overlay').classList.add('active');
-  document.getElementById('scan-video').style.display = 'block';
-  document.getElementById('scan-capture').style.display = 'inline-block';
+}
+
+function backToChoice(){
+  if (scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream = null; }
+  barcodeLoopActive = false;
+  document.getElementById('scan-choice').style.display = 'flex';
+  document.getElementById('scan-camera-area').style.display = 'none';
+  document.getElementById('scan-upload-area').style.display = 'none';
+}
+
+async function openCameraArea(){
+  document.getElementById('scan-choice').style.display = 'none';
+  document.getElementById('scan-camera-area').style.display = 'block';
+  document.getElementById('scan-status-camera').textContent = scanMode==='barcode'
+    ? (barcodeDetectorSupported ? 'Point your camera at the barcode' : 'Live detection not supported — tap Capture then confirm manually')
+    : 'Frame the label, then tap Capture';
   try{
     scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     const video = document.getElementById('scan-video');
     video.srcObject = scanStream;
-    if (mode==='barcode' && barcodeDetectorSupported) runBarcodeLoop();
+    if (scanMode==='barcode' && barcodeDetectorSupported) runBarcodeLoop();
   }catch(err){
-    document.getElementById('scan-status').textContent = 'Camera unavailable — use "Upload Image Instead" below.';
-    document.getElementById('scan-video').style.display = 'none';
-    document.getElementById('scan-capture').style.display = 'none';
+    document.getElementById('scan-status-camera').textContent = 'Camera unavailable: ' + err.message + ' — tap Back and try Upload Image instead.';
   }
 }
 
@@ -752,7 +808,7 @@ async function runBarcodeLoop(){
       if (codes.length){
         barcodeLoopActive = false;
         const code = codes[0].rawValue;
-        document.getElementById('scan-status').textContent = 'Found barcode: ' + code + ' — looking up...';
+        document.getElementById('scan-status-camera').textContent = 'Found barcode: ' + code + ' — looking up...';
         await lookupBarcode(code);
         stopScan();
         return;
@@ -769,31 +825,35 @@ document.getElementById('scan-capture').addEventListener('click', async ()=>{
   canvas.width = video.videoWidth; canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0);
   const dataUrl = canvas.toDataURL('image/png');
-  await processCapturedImage(dataUrl, canvas);
+  await processCapturedImage(dataUrl, canvas, 'scan-status-camera');
 });
 
 async function handleUploadedImage(e){
   const file = e.target.files[0];
   if (!file) return;
+  document.getElementById('scan-choice').style.display = 'none';
+  document.getElementById('scan-camera-area').style.display = 'none';
+  document.getElementById('scan-upload-area').style.display = 'block';
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const dataUrl = ev.target.result;
     const preview = document.getElementById('scan-upload-preview');
     preview.src = dataUrl; preview.style.display = 'block';
-    document.getElementById('scan-status').textContent = 'Processing uploaded image...';
+    document.getElementById('scan-status-upload').textContent = 'Processing uploaded image...';
     const img = new Image();
     img.onload = async () => {
       const canvas = document.getElementById('scan-canvas');
       canvas.width = img.width; canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
-      await processCapturedImage(dataUrl, canvas);
+      await processCapturedImage(dataUrl, canvas, 'scan-status-upload');
     };
     img.src = dataUrl;
   };
   reader.readAsDataURL(file);
 }
 
-async function processCapturedImage(dataUrl, canvas){
+async function processCapturedImage(dataUrl, canvas, statusElId){
+  const statusEl = document.getElementById(statusElId);
   if (scanMode === 'barcode'){
     barcodeLoopActive = false;
     if (barcodeDetectorSupported){
@@ -802,7 +862,7 @@ async function processCapturedImage(dataUrl, canvas){
         const bitmap = await createImageBitmap(canvas);
         const codes = await detector.detect(bitmap);
         if (codes.length){
-          document.getElementById('scan-status').textContent = 'Found: ' + codes[0].rawValue + ' — looking up...';
+          statusEl.textContent = 'Found: ' + codes[0].rawValue + ' — looking up...';
           await lookupBarcode(codes[0].rawValue);
           stopScan();
           return;
@@ -813,14 +873,14 @@ async function processCapturedImage(dataUrl, canvas){
     if (manual){ await lookupBarcode(manual.trim()); }
     stopScan();
   } else {
-    document.getElementById('scan-status').textContent = 'Reading label text...';
+    statusEl.textContent = 'Reading label text...';
     try{
       const result = await Tesseract.recognize(dataUrl, 'eng');
       const text = result.data.text.trim();
       stopScan();
       applyOcrText(scanTargetCat, text, dataUrl);
     }catch(e){
-      document.getElementById('scan-status').textContent = 'OCR failed: ' + e.message;
+      statusEl.textContent = 'OCR failed: ' + e.message;
     }
   }
 }
@@ -846,22 +906,96 @@ async function lookupBarcode(code){
       document.getElementById('f-brand').value = productInfo.brand;
       document.getElementById('f-origin').value = productInfo.origin;
       if (productInfo.photo){ photoData = productInfo.photo; const p=document.getElementById('photo-prev'); p.src=photoData; p.style.display='block'; }
-      alert('Product found and pre-filled from barcode ' + code + '. Please review and complete remaining details.');
     } else {
       document.getElementById('f-notes').value = 'Barcode: ' + code + ' (no online match found — please fill in details manually)';
-      alert('No product match found for barcode ' + code + '. Fields left blank for manual entry.');
     }
   }, 50);
 }
 
+// ---------- LABEL TEXT PARSER: EXTRACT STRUCTURED FIELDS ----------
+function findKeyword(text, pairs){
+  const lower = text.toLowerCase();
+  for (const [kw, label] of pairs){
+    if (lower.includes(kw)) return label;
+  }
+  return '';
+}
+function findFromList(text, list){
+  const lower = text.toLowerCase();
+  for (const item of list){
+    const re = new RegExp('\\b' + item.toLowerCase().replace(/[^a-z0-9 ]/g,'') + '\\b');
+    if (re.test(lower)) return item;
+  }
+  return '';
+}
+
+function parseCoffeeLabel(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const result = { name:'', brand:'', origin:'', process:'', roast:'' };
+  result.origin = findFromList(text, COFFEE_ORIGINS);
+  result.process = findKeyword(text, COFFEE_PROCESS_KEYWORDS);
+  result.roast = findKeyword(text, COFFEE_ROAST_KEYWORDS);
+
+  const candidateLines = lines.filter(l => l.length > 2 && l.length < 45 && !/^\d+$/.test(l));
+  if (candidateLines.length){
+    result.brand = candidateLines[0];
+    const nameLine = candidateLines.find(l => l !== candidateLines[0] && (result.origin ? l.toLowerCase().includes(result.origin.toLowerCase()) : true))
+      || candidateLines[1] || candidateLines[0];
+    result.name = nameLine;
+  }
+  return result;
+}
+
+function parseWhiskyLabel(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const result = { name:'', brand:'', origin:'', process:'', roast:'', age:'' };
+  result.origin = findFromList(text, WHISKY_REGIONS);
+  result.process = findKeyword(text, WHISKY_TYPE_KEYWORDS);
+
+  const abvMatch = text.match(/(\d{1,2}(?:\.\d)?)\s?%\s?(?:abv|vol|alc)?/i);
+  if (abvMatch) result.roast = abvMatch[1];
+
+  const ageMatch = text.match(/(\d{1,2})\s?(?:year|yr|y\.?o\.?)/i);
+  if (ageMatch) result.age = ageMatch[1] + ' years';
+
+  const candidateLines = lines.filter(l => l.length > 2 && l.length < 45 && !/^\d+$/.test(l));
+  if (candidateLines.length){
+    result.brand = candidateLines[0];
+    result.name = candidateLines.slice(0,2).join(' ').trim() || candidateLines[0];
+  }
+  return result;
+}
+
 function applyOcrText(cat, text, photoUrl){
-  openForm(cat, null);
+  const parsed = cat === 'coffee' ? parseCoffeeLabel(text) : parseWhiskyLabel(text);
+  const reviewLines = [];
+  if (parsed.name) reviewLines.push('<b>Name guess:</b> ' + parsed.name);
+  if (parsed.brand) reviewLines.push('<b>' + (cat==='coffee'?'Roaster':'Distillery') + ' guess:</b> ' + parsed.brand);
+  if (parsed.origin) reviewLines.push('<b>' + (cat==='coffee'?'Origin':'Region') + ' guess:</b> ' + parsed.origin);
+  if (cat==='coffee' && parsed.process) reviewLines.push('<b>Process guess:</b> ' + parsed.process);
+  if (cat==='coffee' && parsed.roast) reviewLines.push('<b>Roast level guess:</b> ' + parsed.roast);
+  if (cat==='whisky' && parsed.process) reviewLines.push('<b>Type guess:</b> ' + parsed.process);
+  if (cat==='whisky' && parsed.roast) reviewLines.push('<b>ABV guess:</b> ' + parsed.roast + '%');
+  if (cat==='whisky' && parsed.age) reviewLines.push('<b>Age guess:</b> ' + parsed.age);
+
+  const reviewNote = 'Auto-filled from scanned text below — please double-check every field, OCR guesses can be imperfect.' +
+    (reviewLines.length ? '<br>' + reviewLines.join('<br>') : '<br>No fields could be confidently detected — please fill in manually.');
+
+  openForm(cat, null, reviewNote);
   setTimeout(()=>{
-    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-    if (lines.length){ document.getElementById('f-name').value = lines[0]; }
-    document.getElementById('f-notes').value = 'Scanned label text:\n' + text;
+    if (parsed.name) document.getElementById('f-name').value = parsed.name;
+    if (parsed.brand) document.getElementById('f-brand').value = parsed.brand;
+    if (parsed.origin) document.getElementById('f-origin').value = parsed.origin;
+    if (cat === 'coffee'){
+      if (parsed.process) document.getElementById('f-process').value = parsed.process;
+      if (parsed.roast) document.getElementById('f-roast').value = parsed.roast;
+    } else {
+      if (parsed.process) document.getElementById('f-process').value = parsed.process;
+      if (parsed.roast) document.getElementById('f-roast').value = parsed.roast;
+      if (parsed.age) document.getElementById('f-roastdate').value = parsed.age;
+    }
+    document.getElementById('f-notes').value = 'Full scanned text:\n' + text;
     if (photoUrl){ photoData = photoUrl; const p=document.getElementById('photo-prev'); p.src=photoData; p.style.display='block'; }
-    alert('Label scanned. Review the auto-filled name and full recognized text in notes — edit as needed.');
   }, 50);
 }
 
