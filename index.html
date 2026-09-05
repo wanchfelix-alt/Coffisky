@@ -165,7 +165,7 @@ button.small{padding:7px 11px; font-size:11px;}
 .install-banner p{font-size:12.5px; line-height:1.4;}
 .install-banner button{white-space:nowrap;}
 .install-banner .dismiss{background:none; color:#c8cfe0; font-size:20px; padding:0 4px; text-transform:none;}
-.ocr-key-note{background:var(--cream); border:1.5px dashed var(--rust); border-radius:8px; padding:10px 12px; font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5;}
+.autofill-badge{display:inline-block; background:var(--teal); color:#fff; font-size:9.5px; padding:2px 7px; border-radius:10px; margin-left:6px; text-transform:none; font-weight:700; vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -296,11 +296,6 @@ const POUR_OVER_GEAR = ['Hario V60','Kalita Wave','Chemex','Origami','Aeropress'
 const FILTER_TYPES = ['Paper - bleached','Paper - unbleached','Cloth','Metal mesh','Abaca'];
 const GRIND_SIZES = ['Extra Fine','Fine','Medium-Fine','Medium','Medium-Coarse','Coarse'];
 
-// Cloud OCR via OCR.space — runs recognition server-side, avoiding the WASM/Worker
-// restrictions that make client-side Tesseract.js unreliable on iOS Safari.
-// The shared demo key "helloworld" is rate-limited (heavily shared, ~500 reqs/day globally).
-// Get your own FREE personal key (25,000 requests/month, no credit card) at:
-// https://ocr.space/ocrapi/freekey  — then replace the value below.
 const OCR_SPACE_API_KEY = 'helloworld';
 const OCR_SPACE_URL = 'https://api.ocr.space/parse/image';
 
@@ -794,7 +789,6 @@ async function handleUploadedImage(e){
       const canvas = document.getElementById('scan-canvas');
       canvas.width = img.width; canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
-      // Re-encode as JPEG for OCR upload — keeps payload small and universally accepted.
       const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
       await processCapturedImage(jpegDataUrl, canvas);
     };
@@ -885,11 +879,11 @@ async function runOcr(dataUrl){
     const msg = extractErrorMessage(err);
     console.error('OCR error:', err);
     statusEl.textContent = 'OCR failed: ' + msg;
-    const isRateLimit = /rate|limit|arcxlimit|exceeded/i.test(msg);
+    const isRateLimit = /rate|limit|exceeded|503/i.test(msg);
     alert(
       'Label scanning failed (' + msg + ').' +
       (isRateLimit
-        ? ' The shared demo key has hit its daily limit — get your own free key at ocr.space/ocrapi/freekey and it will work again immediately.'
+        ? ' The shared demo key may be overloaded — get your own free key at ocr.space/ocrapi/freekey, or just try again in a minute.'
         : ' Try again, use "Upload Image Instead" with a clearer photo, or tap + to enter details manually.')
     );
   }
@@ -924,14 +918,147 @@ async function lookupBarcode(code){
   }, 50);
 }
 
+// ---------- SMART LABEL PARSING ----------
+const PROCESS_MAP = {
+  washed:'Washed', vasket:'Washed', lavado:'Washed', 'lavé':'Washed', wash:'Washed',
+  natural:'Natural', naturel:'Natural', naturlig:'Natural', natur:'Natural', naturale:'Natural',
+  honey:'Honey', honning:'Honey', miel:'Honey', 'miele':'Honey',
+  anaerobic:'Anaerobic', anaerob:'Anaerobic', anaerobico:'Anaerobic', 'anaeróbico':'Anaerobic'
+};
+const ROAST_LEVEL_MAP = {
+  light:'Light', 'lys':'Light', 'lyst':'Light',
+  medium:'Medium', mellem:'Medium',
+  dark:'Dark', 'mørk':'Dark', mork:'Dark'
+};
+
+function parseDateToISO(raw){
+  if (!raw) return '';
+  raw = raw.trim();
+  let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = raw.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+  if (m){
+    let [, d, mo, y] = m;
+    if (y.length===2) y = (parseInt(y,10) < 70 ? '20' : '19') + y;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function parseCoffeeLabel(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const fullText = text;
+  const result = { extras: [] };
+
+  result.name = lines[0] || '';
+  if (lines[1] && /^[A-ZÀ-Ý][A-ZÀ-Ý\s]{1,24}$/.test(lines[1]) && !/[:\d]/.test(lines[1])){
+    result.name = (result.name + ' ' + lines[1]).trim();
+  }
+
+  let m = fullText.match(/produce(?:d|ret)\s+(?:by|af)\s+([^,\n]+?)\s+(?:in|i)\s+([^\n]+)/i);
+  if (m){
+    result.producer = m[1].trim();
+    result.origin = m[2].trim().replace(/[.,]$/,'');
+  } else {
+    m = fullText.match(/(?:origin|farm|grown\s+(?:in|by))\s*[:\-]?\s*([^\n]+)/i);
+    if (m) result.origin = m[1].trim();
+  }
+
+  m = fullText.match(/proces[s]?\s*[:\-]\s*([a-zA-ZæøåÆØÅéèêáàâ]+)/i);
+  if (m && PROCESS_MAP[m[1].toLowerCase()]){
+    result.process = PROCESS_MAP[m[1].toLowerCase()];
+  } else {
+    for (const key in PROCESS_MAP){
+      if (new RegExp('\\b'+key+'\\b','i').test(fullText)){ result.process = PROCESS_MAP[key]; break; }
+    }
+  }
+
+  for (const key in ROAST_LEVEL_MAP){
+    if (new RegExp('\\b'+key+'\\s*roast\\b|\\brist\\w*\\s*'+key+'\\b','i').test(fullText)){
+      result.roastLevel = ROAST_LEVEL_MAP[key]; break;
+    }
+  }
+
+  m = fullText.match(/variatet\s*[:\-]\s*([^\n]+)/i) || fullText.match(/variet(?:y|al)\s*[:\-]\s*([^\n]+)/i);
+  if (m) result.extras.push('Variety: ' + m[1].trim());
+
+  m = fullText.match(/ristedato\s*[:\-]?\s*([\d.\/\-]+)/i) || fullText.match(/roast(?:ed)?\s*date\s*[:\-]?\s*([\d.\/\-]+)/i) || fullText.match(/roasted\s*on\s*[:\-]?\s*([\d.\/\-]+)/i);
+  if (m){
+    const iso = parseDateToISO(m[1]);
+    if (iso) result.roastDate = iso;
+    else result.extras.push('Roast date (raw): ' + m[1]);
+  }
+
+  m = fullText.match(/bedst\s*f[øo]r\s*[:\-]?\s*([\d.\/\-]+)/i) || fullText.match(/best\s*before\s*[:\-]?\s*([\d.\/\-]+)/i);
+  if (m) result.extras.push('Best before: ' + m[1].trim());
+
+  m = fullText.match(/(\d+(?:[.,]\d+)?)\s*(\$|usd|kr\.?|hkd|eur|€)\s*\/\s*kg/i);
+  if (m) result.extras.push('Price: ' + m[0].trim());
+
+  m = fullText.match(/\b(\d{2,4})\s*g\b/);
+  if (m) result.extras.push('Weight: ' + m[1] + 'g');
+
+  const skipWords = new Set(['GESHA','WASHED','NATURAL','HONEY','ANAEROBIC']);
+  const capsLines = lines.filter((l,i) => i>0 && /^[A-ZÀ-Ý][A-ZÀ-Ý\s&'.\-]{2,29}$/.test(l) && !/\d/.test(l) && !skipWords.has(l));
+  if (capsLines.length) result.brand = capsLines[capsLines.length-1];
+
+  return result;
+}
+
+const WHISKY_REGIONS = ['islay','speyside','highland','lowland','campbeltown','islands','kentucky','tennessee','ireland','japan','scotland','wales','india','taiwan'];
+
+function parseWhiskyLabel(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const fullText = text;
+  const result = { extras: [] };
+
+  result.name = lines[0] || '';
+
+  let m = fullText.match(/(\d{1,2}(?:[.,]\d)?)\s*%\s*(?:abv|vol)?/i);
+  if (m) result.abv = m[1].replace(',', '.');
+
+  m = fullText.match(/(\d{1,2})\s*(?:years?\s*old|yo|y\.o\.|år)/i);
+  if (m) result.age = m[1] + ' years';
+
+  for (const region of WHISKY_REGIONS){
+    if (new RegExp('\\b'+region+'\\b','i').test(fullText)){
+      result.origin = region.charAt(0).toUpperCase() + region.slice(1);
+      break;
+    }
+  }
+
+  const skipWords = new Set(['SINGLE MALT','BLENDED','CASK STRENGTH']);
+  const capsLines = lines.filter((l,i) => i>0 && /^[A-ZÀ-Ý][A-ZÀ-Ý\s&'.\-]{2,29}$/.test(l) && !/\d/.test(l) && !skipWords.has(l));
+  if (capsLines.length) result.brand = capsLines[capsLines.length-1];
+
+  return result;
+}
+
 function applyOcrText(cat, text, photoUrl){
+  const parsed = cat === 'coffee' ? parseCoffeeLabel(text) : parseWhiskyLabel(text);
   openForm(cat, null);
   setTimeout(()=>{
-    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-    if (lines.length){ document.getElementById('f-name').value = lines[0]; }
-    document.getElementById('f-notes').value = 'Scanned label text:\n' + text;
+    if (parsed.name) document.getElementById('f-name').value = parsed.name;
+    if (parsed.brand) document.getElementById('f-brand').value = parsed.brand;
+    if (parsed.origin) document.getElementById('f-origin').value = parsed.origin;
+
+    if (cat === 'coffee'){
+      if (parsed.process) document.getElementById('f-process').value = parsed.process;
+      if (parsed.roastLevel) document.getElementById('f-roast').value = parsed.roastLevel;
+      if (parsed.roastDate) document.getElementById('f-roastdate').value = parsed.roastDate;
+      if (parsed.producer) parsed.extras = ['Producer: ' + parsed.producer, ...parsed.extras];
+    } else {
+      if (parsed.abv) document.getElementById('f-roast').value = parsed.abv;
+      if (parsed.age) document.getElementById('f-roastdate').value = parsed.age;
+    }
+
+    const extrasText = (parsed.extras && parsed.extras.length) ? parsed.extras.join('\n') + '\n\n' : '';
+    document.getElementById('f-notes').value = extrasText + 'Full scanned label text:\n' + text;
+
     if (photoUrl){ photoData = photoUrl; const p=document.getElementById('photo-prev'); p.src=photoData; p.style.display='block'; }
-    alert('Label scanned. Review the auto-filled name and full recognized text in notes — edit as needed.');
+
+    const filledFields = ['name','brand','origin', cat==='coffee' ? 'process' : 'abv', cat==='coffee' ? 'roastDate' : 'age'].filter(k => parsed[k]);
+    alert('Label scanned and auto-filled ' + filledFields.length + ' field(s). Please review every field — automatic label parsing is a best-effort guess and may need correction, especially for dates and origin.');
   }, 50);
 }
 
