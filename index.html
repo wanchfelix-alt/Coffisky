@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1b3e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cellar & Cup">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<title>Cellar & Cup — Coffee and Spirits Tracker</title>
+<style>
+:root{
+  --navy:#0d1b3e; --navy-light:#16295c; --white:#faf8f3; --panel:#ffffff;
+  --mustard:#e0a83e; --teal:#3e8a86; --rust:#c1613b; --cream:#f2ede1;
+  --text:#0d1b3e; --muted:#5c6478; --border:#e2ddd0;
+  --good:#3e8a86; --bad:#c1613b;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:'Century Gothic','Futura',Avenir,'Segoe UI',Roboto,sans-serif;
+  background:var(--white); color:var(--text); min-height:100vh;
+}
+.app{max-width:900px; margin:0 auto; padding-bottom:90px;}
+header{
+  padding:24px 16px 16px; text-align:center; background:var(--navy); color:var(--white);
+  position:sticky; top:0; z-index:10; border-bottom:5px solid var(--mustard);
+}
+header h1{font-size:24px; font-weight:700; letter-spacing:1px;}
+header h1 span{color:var(--mustard);}
+header p{color:#c8cfe0; font-size:12.5px; margin-top:5px; letter-spacing:0.3px;}
+.tabs{
+  display:flex; gap:0; margin:16px 16px 0; background:var(--cream); border-radius:0; padding:4px;
+  border:2px solid var(--navy);
+}
+.tab{
+  flex:1; text-align:center; padding:11px 6px; cursor:pointer;
+  font-size:13px; font-weight:700; color:var(--navy); transition:all .2s; letter-spacing:0.4px;
+  text-transform:uppercase;
+}
+.tab.active{background:var(--navy); color:var(--mustard);}
+.section{display:none; padding:16px;}
+.section.active{display:block;}
+.toolbar{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+input,select,textarea{
+  background:var(--panel); border:2px solid var(--border); color:var(--text);
+  border-radius:6px; padding:9px 11px; font-size:14px; width:100%; font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--navy);}
+.toolbar input[type=text]{flex:2; min-width:140px;}
+.toolbar select{flex:1; min-width:110px;}
+button{
+  background:var(--navy); color:var(--white); border:none; border-radius:6px;
+  padding:11px 16px; font-weight:700; font-size:13px; cursor:pointer; letter-spacing:0.4px;
+  text-transform:uppercase;
+}
+button:hover{background:var(--navy-light);}
+button.secondary{background:var(--white); color:var(--navy); border:2px solid var(--navy);}
+button.accent{background:var(--mustard); color:var(--navy);}
+button.teal{background:var(--teal); color:var(--white);}
+button.small{padding:7px 11px; font-size:11px;}
+.fab{
+  position:fixed; bottom:22px; right:22px; width:58px; height:58px; border-radius:50%;
+  font-size:26px; box-shadow:0 6px 16px rgba(13,27,62,.35); z-index:20; background:var(--mustard); color:var(--navy);
+}
+.scan-row{display:flex; gap:8px; margin-bottom:14px;}
+.scan-row button{flex:1;}
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+@media(max-width:520px){.grid{grid-template-columns:1fr;}}
+.card{
+  background:var(--panel); border:2px solid var(--navy); border-radius:10px; padding:14px;
+  position:relative; cursor:pointer; transition:transform .15s; overflow:hidden;
+}
+.card::before{
+  content:''; position:absolute; top:0; right:0; width:0; height:0;
+  border-style:solid; border-width:0 34px 34px 0; border-color:transparent var(--mustard) transparent transparent;
+}
+.card:hover{transform:translateY(-3px); box-shadow:4px 4px 0 var(--navy);}
+.card .badge{
+  position:absolute; top:6px; right:4px; color:var(--navy);
+  font-size:10px; font-weight:800; z-index:2;
+}
+.card h3{font-size:15.5px; margin-bottom:2px; padding-right:30px; color:var(--navy); font-weight:700;}
+.card .sub{color:var(--muted); font-size:12px; margin-bottom:8px;}
+.stars{color:var(--rust); font-size:14px; margin-bottom:6px; font-weight:700;}
+.tags{display:flex; gap:5px; flex-wrap:wrap; margin-top:6px;}
+.tag{background:var(--cream); color:var(--navy); font-size:10.5px; padding:4px 9px; border-radius:20px; border:1.5px solid var(--navy); font-weight:600;}
+.stat-row{display:flex; gap:10px; margin-bottom:16px; overflow-x:auto;}
+.stat{
+  background:var(--navy); color:var(--white); border-radius:8px; padding:14px 16px;
+  min-width:100px; text-align:center; flex:1; border-bottom:4px solid var(--mustard);
+}
+.stat .num{font-size:20px; font-weight:800; color:var(--mustard);}
+.stat .lbl{font-size:10.5px; color:#c8cfe0; margin-top:3px; text-transform:uppercase; letter-spacing:0.3px;}
+.empty{text-align:center; color:var(--muted); padding:50px 20px; font-size:14px;}
+.modal-overlay{
+  display:none; position:fixed; inset:0; background:rgba(13,27,62,.55); z-index:50;
+  align-items:flex-end; justify-content:center;
+}
+.modal-overlay.active{display:flex;}
+.modal{
+  background:var(--white); width:100%; max-width:640px; max-height:92vh; overflow-y:auto;
+  border-radius:16px 16px 0 0; padding:20px; animation:slideUp .25s ease-out; border-top:6px solid var(--mustard);
+}
+@keyframes slideUp{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+.modal-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+.modal-header h2{font-size:18px; color:var(--navy); font-weight:700;}
+.close-btn{background:none; color:var(--navy); font-size:24px; padding:0 6px; border:none;}
+.form-row{margin-bottom:12px;}
+.form-row label{display:block; font-size:11.5px; color:var(--navy); margin-bottom:5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px;}
+.form-2col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.form-3col{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+.slider-row{display:flex; align-items:center; gap:10px;}
+.slider-row input[type=range]{flex:1; accent-color:var(--navy);}
+.slider-val{width:36px; text-align:center; font-weight:800; color:var(--rust); font-size:13px;}
+.flavor-tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+.flavor-chip{
+  padding:6px 11px; border-radius:20px; border:2px solid var(--navy); background:var(--white);
+  font-size:11.5px; cursor:pointer; color:var(--navy); font-weight:600;
+}
+.flavor-chip.selected{background:var(--navy); color:var(--mustard); border-color:var(--navy);}
+.detail-hero{
+  height:130px; border-radius:10px; margin-bottom:14px; display:flex; align-items:flex-end;
+  padding:14px; background:var(--navy); position:relative; overflow:hidden;
+}
+.detail-hero::after{content:''; position:absolute; width:90px; height:90px; border-radius:50%; background:var(--mustard); opacity:.25; top:-30px; right:-30px;}
+.detail-hero::before{content:''; position:absolute; width:50px; height:50px; border-radius:50%; background:var(--teal); opacity:.3; bottom:-20px; left:-10px;}
+.detail-hero h2{font-size:20px; color:#fff; position:relative; z-index:1;}
+.detail-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1.5px solid var(--border); font-size:13.5px;}
+.detail-row span:first-child{color:var(--muted); font-weight:600;}
+.detail-row span:last-child{color:var(--navy); font-weight:700;}
+.notes-box{background:var(--cream); border-left:4px solid var(--mustard); border-radius:6px; padding:12px; margin-top:10px; font-size:13.5px; line-height:1.5;}
+.actions-row{display:flex; gap:8px; margin-top:16px;}
+.actions-row button{flex:1;}
+.sort-bar{display:flex; justify-content:flex-end; margin-bottom:10px;}
+.sort-bar select{width:auto; font-size:12px; padding:6px 10px;}
+.photo-preview{width:100%; height:120px; border-radius:8px; object-fit:cover; margin-top:8px; display:none; border:2px solid var(--navy);}
+.scan-modal-video{width:100%; border-radius:8px; background:#000; margin-bottom:10px;}
+.scan-status{font-size:12.5px; color:var(--muted); text-align:center; margin:8px 0;}
+.scan-divider{display:flex; align-items:center; gap:10px; margin:12px 0; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;}
+.scan-divider::before, .scan-divider::after{content:''; flex:1; height:1px; background:var(--border);}
+.upload-preview{width:100%; max-height:220px; object-fit:contain; border-radius:8px; margin-top:10px; display:none; border:2px solid var(--navy); background:var(--cream);}
+.section-divider{
+  margin:22px 0 12px; padding-top:14px; border-top:3px solid var(--navy);
+  display:flex; align-items:center; gap:8px;
+}
+.section-divider h3{font-size:14.5px; color:var(--navy); text-transform:uppercase; letter-spacing:0.5px; font-weight:800;}
+.brew-log-card{
+  background:var(--cream); border:1.5px solid var(--navy); border-radius:8px; padding:12px; margin-bottom:10px;
+}
+.brew-log-card .brew-header{display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--navy); margin-bottom:6px;}
+.brew-log-grid{display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:var(--muted);}
+.brew-log-grid b{color:var(--navy);}
+.ratio-display{background:var(--navy); color:var(--mustard); padding:8px 12px; border-radius:6px; text-align:center; font-weight:800; font-size:14px; margin-top:6px;}
+.install-banner{
+  display:none; position:fixed; bottom:0; left:0; right:0; background:var(--navy); color:var(--white);
+  padding:14px 16px; z-index:60; align-items:center; justify-content:space-between; gap:12px;
+  border-top:4px solid var(--mustard); box-shadow:0 -4px 14px rgba(0,0,0,.25);
+}
+.install-banner.show{display:flex;}
+.install-banner p{font-size:12.5px; line-height:1.4;}
+.install-banner button{white-space:nowrap;}
+.install-banner .dismiss{background:none; color:#c8cfe0; font-size:20px; padding:0 4px; text-transform:none;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><span>Cellar</span> & Cup</h1>
+    <p>Your personal coffee bean and whisky/spirits tasting journal</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="coffee">Coffee</div>
+    <div class="tab" data-tab="whisky">Whisky & Spirits</div>
+    <div class="tab" data-tab="stats">Insights</div>
+  </div>
+
+  <div class="section active" id="section-coffee">
+    <div class="stat-row" id="coffee-stats"></div>
+    <div class="scan-row">
+      <button class="teal" id="coffee-scan-barcode">Scan Barcode</button>
+      <button class="accent" id="coffee-scan-label">Scan Label Text</button>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="coffee-search" placeholder="Search roaster, origin, name...">
+      <select id="coffee-filter-status">
+        <option value="">All status</option>
+        <option value="in_stock">In stock</option>
+        <option value="finished">Finished</option>
+        <option value="wishlist">Wishlist</option>
+      </select>
+    </div>
+    <div class="sort-bar">
+      <select id="coffee-sort">
+        <option value="date_desc">Newest first</option>
+        <option value="rating_desc">Highest rated</option>
+        <option value="rating_asc">Lowest rated</option>
+        <option value="name_asc">Name A–Z</option>
+      </select>
+    </div>
+    <div class="grid" id="coffee-list"></div>
+  </div>
+
+  <div class="section" id="section-whisky">
+    <div class="stat-row" id="whisky-stats"></div>
+    <div class="scan-row">
+      <button class="teal" id="whisky-scan-barcode">Scan Barcode</button>
+      <button class="accent" id="whisky-scan-label">Scan Label Text</button>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="whisky-search" placeholder="Search distillery, region, name...">
+      <select id="whisky-filter-status">
+        <option value="">All status</option>
+        <option value="in_stock">In stock</option>
+        <option value="finished">Finished</option>
+        <option value="wishlist">Wishlist</option>
+      </select>
+    </div>
+    <div class="sort-bar">
+      <select id="whisky-sort">
+        <option value="date_desc">Newest first</option>
+        <option value="rating_desc">Highest rated</option>
+        <option value="rating_asc">Lowest rated</option>
+        <option value="name_asc">Name A–Z</option>
+      </select>
+    </div>
+    <div class="grid" id="whisky-list"></div>
+  </div>
+
+  <div class="section" id="section-stats">
+    <div id="insights-content"></div>
+  </div>
+</div>
+
+<div class="install-banner" id="install-banner">
+  <p id="install-text">Install Cellar & Cup on your home screen for a full-screen, app-like experience.</p>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="accent small" id="install-btn">Install</button>
+    <button class="dismiss" id="install-dismiss">×</button>
+  </div>
+</div>
+<button class="fab" id="fab-add">+</button>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Item</h2>
+      <button class="close-btn" id="modal-close">×</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detail-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="detail-title">Detail</h2>
+      <button class="close-btn" id="detail-close">×</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="scan-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="scan-title">Scan</h2>
+      <button class="close-btn" id="scan-close">×</button>
+    </div>
+    <video id="scan-video" class="scan-modal-video" autoplay playsinline muted></video>
+    <canvas id="scan-canvas" style="display:none;"></canvas>
+    <div class="scan-status" id="scan-status">Point your camera at the barcode</div>
+    <div class="actions-row">
+      <button class="secondary" id="scan-capture">Capture</button>
+      <button id="scan-cancel">Cancel</button>
+    </div>
+    <div class="scan-divider">or</div>
+    <button type="button" class="accent" id="scan-upload-btn" style="width:100%">Upload Image Instead</button>
+    <input type="file" id="scan-file-input" accept="image/*" style="display:none;">
+    <img id="scan-upload-preview" class="upload-preview">
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const STORAGE_KEY = 'cellar_cup_data_v2';
+
+const COFFEE_FLAVORS = ['Chocolate','Nutty','Caramel','Citrus','Berry','Floral','Stone Fruit','Winey','Spice','Earthy','Herbal','Tropical Fruit','Molasses','Tobacco'];
+const WHISKY_FLAVORS = ['Peat','Smoke','Vanilla','Honey','Sherry','Oak','Fruit','Spice','Iodine','Toffee','Citrus','Nutty','Floral','Leather','Chocolate'];
+const POUR_OVER_GEAR = ['Hario V60','Kalita Wave','Chemex','Origami','Aeropress','Melitta','Clever Dripper','Orea','April Brewer','Other'];
+const FILTER_TYPES = ['Paper - bleached','Paper - unbleached','Cloth','Metal mesh','Abaca'];
+const GRIND_SIZES = ['Extra Fine','Fine','Medium-Fine','Medium','Medium-Coarse','Coarse'];
+
+let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || { coffee: [], whisky: [] };
+let currentCategory = 'coffee';
+let editingId = null;
+let selectedFlavors = [];
+let photoData = '';
+let brewLogs = [];
+let scanStream = null;
+let scanMode = null;
+let scanTargetCat = null;
+let barcodeDetectorSupported = 'BarcodeDetector' in window;
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('section-' + t.dataset.tab).classList.add('active');
+  if (t.dataset.tab !== 'stats') currentCategory = t.dataset.tab;
+  if (t.dataset.tab === 'stats') renderInsights();
+}));
+
+function starStr(r){
+  const full = Math.round(r);
+  return '★'.repeat(full) + '☆'.repeat(5-full) + ' ' + r.toFixed(1);
+}
+function statusLabel(s){
+  return {in_stock:'In stock', finished:'Finished', wishlist:'Wishlist'}[s] || s;
+}
+
+function renderList(cat){
+  const items = db[cat] || [];
+  const searchEl = document.getElementById(cat+'-search');
+  const filterEl = document.getElementById(cat+'-filter-status');
+  const sortEl = document.getElementById(cat+'-sort');
+  const q = (searchEl.value || '').toLowerCase();
+  const statusF = filterEl.value;
+  let filtered = items.filter(it => {
+    const hay = [it.name, it.brand, it.origin].join(' ').toLowerCase();
+    const matchQ = !q || hay.includes(q);
+    const matchS = !statusF || it.status === statusF;
+    return matchQ && matchS;
+  });
+  const sort = sortEl.value;
+  filtered.sort((a,b) => {
+    if (sort==='rating_desc') return (b.rating||0)-(a.rating||0);
+    if (sort==='rating_asc') return (a.rating||0)-(b.rating||0);
+    if (sort==='name_asc') return a.name.localeCompare(b.name);
+    return (b.createdAt||0)-(a.createdAt||0);
+  });
+
+  const list = document.getElementById(cat+'-list');
+  if (filtered.length===0){
+    list.innerHTML = `<div class="empty">No ${cat==='coffee'?'coffee beans':'bottles'} yet. Tap + to add your first one.</div>`;
+    renderStats(cat);
+    return;
+  }
+  list.innerHTML = filtered.map(it => `
+    <div class="card" onclick="openDetail('${cat}','${it.id}')">
+      <div class="badge">${statusLabel(it.status)}</div>
+      <h3>${it.name}</h3>
+      <div class="sub">${it.brand || ''}${it.origin ? ' · ' + it.origin : ''}</div>
+      <div class="stars">${it.rating ? starStr(it.rating) : 'Not rated'}</div>
+      <div class="tags">${(it.flavors||[]).slice(0,4).map(f=>`<span class="tag">${f}</span>`).join('')}</div>
+      ${cat==='coffee' && it.brewLogs && it.brewLogs.length ? `<div class="tag" style="margin-top:6px; background:var(--navy); color:var(--mustard); border-color:var(--navy)">${it.brewLogs.length} brew log${it.brewLogs.length>1?'s':''}</div>` : ''}
+    </div>
+  `).join('');
+  renderStats(cat);
+}
+
+function renderStats(cat){
+  const items = db[cat] || [];
+  const rated = items.filter(i=>i.rating);
+  const avg = rated.length ? (rated.reduce((s,i)=>s+i.rating,0)/rated.length).toFixed(2) : '—';
+  const inStock = items.filter(i=>i.status==='in_stock').length;
+  const top = rated.slice().sort((a,b)=>b.rating-a.rating)[0];
+  document.getElementById(cat+'-stats').innerHTML = `
+    <div class="stat"><div class="num">${items.length}</div><div class="lbl">Total logged</div></div>
+    <div class="stat"><div class="num">${avg}</div><div class="lbl">Avg rating</div></div>
+    <div class="stat"><div class="num">${inStock}</div><div class="lbl">In stock</div></div>
+    <div class="stat"><div class="num" style="font-size:14px">${top ? top.name.slice(0,12) : '—'}</div><div class="lbl">Top rated</div></div>
+  `;
+}
+
+['coffee-search','coffee-filter-status','coffee-sort'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>renderList('coffee'));
+  document.getElementById(id).addEventListener('change', ()=>renderList('coffee'));
+});
+['whisky-search','whisky-filter-status','whisky-sort'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>renderList('whisky'));
+  document.getElementById(id).addEventListener('change', ()=>renderList('whisky'));
+});
+
+document.getElementById('fab-add').addEventListener('click', ()=>openForm(currentCategory, null));
+document.getElementById('modal-close').addEventListener('click', closeForm);
+document.getElementById('modal-overlay').addEventListener('click', e=>{ if(e.target.id==='modal-overlay') closeForm(); });
+
+function closeForm(){ document.getElementById('modal-overlay').classList.remove('active'); }
+
+function pourOverSectionHTML(item){
+  brewLogs = item?.brewLogs ? JSON.parse(JSON.stringify(item.brewLogs)) : [];
+  return `
+  <div class="section-divider"><h3>Pour-Over Brew Log</h3></div>
+  <div id="brew-logs-list">${renderBrewLogsList()}</div>
+  <div style="background:var(--cream); border:1.5px dashed var(--navy); border-radius:8px; padding:12px; margin-top:8px;">
+    <div class="form-2col">
+      <div class="form-row"><label>Gear / Dripper</label><select id="bl-gear">
+        ${POUR_OVER_GEAR.map(g=>`<option>${g}</option>`).join('')}
+      </select></div>
+      <div class="form-row"><label>Filter type</label><select id="bl-filter">
+        ${FILTER_TYPES.map(g=>`<option>${g}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="form-3col">
+      <div class="form-row"><label>Dose (g)</label><input id="bl-dose" type="number" step="0.1" placeholder="e.g. 15"></div>
+      <div class="form-row"><label>Water (ml)</label><input id="bl-water" type="number" placeholder="e.g. 250"></div>
+      <div class="form-row"><label>Ratio</label><div class="ratio-display" id="bl-ratio">1 : —</div></div>
+    </div>
+    <div class="form-3col">
+      <div class="form-row"><label>Water temp (°C)</label><input id="bl-temp" type="number" placeholder="e.g. 92"></div>
+      <div class="form-row"><label>Grind size</label><select id="bl-grind">
+        ${GRIND_SIZES.map(g=>`<option>${g}</option>`).join('')}
+      </select></div>
+      <div class="form-row"><label>Grinder click/setting</label><input id="bl-grindsetting" placeholder="e.g. Comandante 22"></div>
+    </div>
+    <div class="form-3col">
+      <div class="form-row"><label>Bloom time (s)</label><input id="bl-bloom" type="number" placeholder="e.g. 30"></div>
+      <div class="form-row"><label>Total brew time (mm:ss)</label><input id="bl-time" placeholder="e.g. 2:45"></div>
+      <div class="form-row"><label>Kettle used</label><input id="bl-kettle" placeholder="e.g. Fellow Stagg"></div>
+    </div>
+    <div class="form-row"><label>Pours / technique notes</label><textarea id="bl-technique" rows="2" placeholder="e.g. 3 pours: 50g bloom, 100g @1:00, 100g @1:30"></textarea></div>
+    <div class="form-row"><label>Result notes</label><textarea id="bl-result" rows="2" placeholder="Taste result, adjustments for next time..."></textarea></div>
+    <button type="button" class="teal small" id="add-brew-log-btn" style="width:100%">+ Add Brew Log Entry</button>
+  </div>
+  `;
+}
+
+function renderBrewLogsList(){
+  if (!brewLogs.length) return '<div style="color:var(--muted); font-size:12.5px; margin-bottom:8px;">No brew logs yet — add your first pour-over session below.</div>';
+  return brewLogs.map((b,i)=>`
+    <div class="brew-log-card">
+      <div class="brew-header"><span>${b.date || ''} · ${b.gear}</span><span style="cursor:pointer; color:var(--rust);" onclick="removeBrewLog(${i})">Remove</span></div>
+      <div class="brew-log-grid">
+        <div><b>Dose:</b> ${b.dose||'—'}g</div><div><b>Water:</b> ${b.water||'—'}ml</div>
+        <div><b>Ratio:</b> 1:${b.dose && b.water ? (b.water/b.dose).toFixed(1) : '—'}</div><div><b>Temp:</b> ${b.temp||'—'}°C</div>
+        <div><b>Grind:</b> ${b.grind||'—'}</div><div><b>Filter:</b> ${b.filter||'—'}</div>
+        <div><b>Bloom:</b> ${b.bloom||'—'}s</div><div><b>Total time:</b> ${b.time||'—'}</div>
+      </div>
+      ${b.technique ? `<div style="font-size:12px; margin-top:6px; color:var(--muted)"><b style="color:var(--navy)">Technique:</b> ${b.technique}</div>` : ''}
+      ${b.result ? `<div style="font-size:12px; margin-top:4px; color:var(--muted)"><b style="color:var(--navy)">Result:</b> ${b.result}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function removeBrewLog(i){
+  brewLogs.splice(i,1);
+  document.getElementById('brew-logs-list').innerHTML = renderBrewLogsList();
+}
+
+function attachBrewLogListeners(){
+  const doseEl = document.getElementById('bl-dose');
+  const waterEl = document.getElementById('bl-water');
+  const ratioEl = document.getElementById('bl-ratio');
+  function updateRatio(){
+    const d = parseFloat(doseEl.value), w = parseFloat(waterEl.value);
+    ratioEl.textContent = (d && w) ? `1 : ${(w/d).toFixed(1)}` : '1 : —';
+  }
+  doseEl.addEventListener('input', updateRatio);
+  waterEl.addEventListener('input', updateRatio);
+  document.getElementById('add-brew-log-btn').addEventListener('click', ()=>{
+    const dose = parseFloat(doseEl.value)||0;
+    const water = parseFloat(waterEl.value)||0;
+    if (!dose && !water){ alert('Enter at least dose or water amount.'); return; }
+    brewLogs.push({
+      date: new Date().toISOString().slice(0,10),
+      gear: document.getElementById('bl-gear').value,
+      filter: document.getElementById('bl-filter').value,
+      dose, water,
+      temp: document.getElementById('bl-temp').value,
+      grind: document.getElementById('bl-grind').value,
+      grindsetting: document.getElementById('bl-grindsetting').value,
+      bloom: document.getElementById('bl-bloom').value,
+      time: document.getElementById('bl-time').value,
+      kettle: document.getElementById('bl-kettle').value,
+      technique: document.getElementById('bl-technique').value,
+      result: document.getElementById('bl-result').value
+    });
+    document.getElementById('brew-logs-list').innerHTML = renderBrewLogsList();
+    ['bl-dose','bl-water','bl-temp','bl-grindsetting','bl-bloom','bl-time','bl-kettle','bl-technique','bl-result'].forEach(id=>document.getElementById(id).value='');
+    ratioEl.textContent = '1 : —';
+  });
+}
+
+function coffeeFormHTML(item){
+  return `
+  <div class="form-row"><label>Bean name *</label><input id="f-name" value="${item?.name||''}" placeholder="e.g. Ethiopia Yirgacheffe Washed"></div>
+  <div class="form-2col">
+    <div class="form-row"><label>Roaster</label><input id="f-brand" value="${item?.brand||''}" placeholder="e.g. %Arabica"></div>
+    <div class="form-row"><label>Origin</label><input id="f-origin" value="${item?.origin||''}" placeholder="e.g. Ethiopia"></div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row"><label>Process</label><select id="f-process">
+      ${['','Washed','Natural','Honey','Anaerobic','Other'].map(p=>`<option ${item?.process===p?'selected':''}>${p}</option>`).join('')}
+    </select></div>
+    <div class="form-row"><label>Roast level</label><select id="f-roast">
+      ${['','Light','Medium-Light','Medium','Medium-Dark','Dark'].map(p=>`<option ${item?.roast===p?'selected':''}>${p}</option>`).join('')}
+    </select></div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row"><label>Roast date</label><input id="f-roastdate" type="date" value="${item?.roastDate||''}"></div>
+    <div class="form-row"><label>Price paid (HKD)</label><input id="f-price" type="number" value="${item?.price||''}" placeholder="e.g. 128"></div>
+  </div>
+  <div class="form-row"><label>Status</label><select id="f-status">
+    ${[['in_stock','In stock'],['finished','Finished'],['wishlist','Wishlist']].map(([v,l])=>`<option value="${v}" ${item?.status===v?'selected':''}>${l}</option>`).join('')}
+  </select></div>
+  ${ratingSliderHTML(item)}
+  ${flavorPickerHTML(COFFEE_FLAVORS, item)}
+  <div class="form-row"><label>Tasting notes</label><textarea id="f-notes" rows="3" placeholder="Aroma, body, aftertaste...">${item?.notes||''}</textarea></div>
+  ${photoInputHTML(item)}
+  ${pourOverSectionHTML(item)}
+  `;
+}
+
+function whiskyFormHTML(item){
+  return `
+  <div class="form-row"><label>Bottle name *</label><input id="f-name" value="${item?.name||''}" placeholder="e.g. Lagavulin 16 Year"></div>
+  <div class="form-2col">
+    <div class="form-row"><label>Distillery / Brand</label><input id="f-brand" value="${item?.brand||''}" placeholder="e.g. Lagavulin"></div>
+    <div class="form-row"><label>Region/Country</label><input id="f-origin" value="${item?.origin||''}" placeholder="e.g. Islay, Scotland"></div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row"><label>Type</label><select id="f-process">
+      ${['','Single Malt','Blended','Bourbon','Rye','Rum','Gin','Cognac','Mezcal/Tequila','Other'].map(p=>`<option ${item?.process===p?'selected':''}>${p}</option>`).join('')}
+    </select></div>
+    <div class="form-row"><label>ABV %</label><input id="f-roast" type="number" step="0.1" value="${item?.roast||''}" placeholder="e.g. 43"></div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row"><label>Age statement</label><input id="f-roastdate" value="${item?.roastDate||''}" placeholder="e.g. 16 years / NAS"></div>
+    <div class="form-row"><label>Price paid (HKD)</label><input id="f-price" type="number" value="${item?.price||''}" placeholder="e.g. 890"></div>
+  </div>
+  <div class="form-row"><label>Status</label><select id="f-status">
+    ${[['in_stock','In stock (bottle opened)'],['finished','Finished'],['wishlist','Wishlist']].map(([v,l])=>`<option value="${v}" ${item?.status===v?'selected':''}>${l}</option>`).join('')}
+  </select></div>
+  ${ratingSliderHTML(item)}
+  ${flavorPickerHTML(WHISKY_FLAVORS, item)}
+  <div class="form-row"><label>Tasting notes</label><textarea id="f-notes" rows="3" placeholder="Nose, palate, finish, cask type...">${item?.notes||''}</textarea></div>
+  ${photoInputHTML(item)}
+  `;
+}
+
+function ratingSliderHTML(item){
+  const val = item?.rating || 3.5;
+  return `
+  <div class="form-row"><label>Your rating</label>
+    <div class="slider-row">
+      <input type="range" id="f-rating" min="0" max="5" step="0.1" value="${val}" oninput="document.getElementById('rating-val').textContent=parseFloat(this.value).toFixed(1)">
+      <div class="slider-val" id="rating-val">${val.toFixed(1)}</div>
+    </div>
+  </div>`;
+}
+
+function flavorPickerHTML(list, item){
+  selectedFlavors = item?.flavors ? [...item.flavors] : [];
+  return `
+  <div class="form-row"><label>Flavor notes (tap to select)</label>
+    <div class="flavor-tags" id="flavor-tags">
+      ${list.map(f=>`<span class="flavor-chip ${selectedFlavors.includes(f)?'selected':''}" data-f="${f}">${f}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+function photoInputHTML(item){
+  photoData = item?.photo || '';
+  return `
+  <div class="form-row"><label>Photo (label/bottle)</label>
+    <input type="file" id="f-photo" accept="image/*">
+    <img id="photo-prev" class="photo-preview" src="${photoData}" style="${photoData?'display:block':''}">
+  </div>`;
+}
+
+function attachFormListeners(cat){
+  document.querySelectorAll('.flavor-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const f = chip.dataset.f;
+      if (selectedFlavors.includes(f)){ selectedFlavors = selectedFlavors.filter(x=>x!==f); chip.classList.remove('selected'); }
+      else { selectedFlavors.push(f); chip.classList.add('selected'); }
+    });
+  });
+  const photoInput = document.getElementById('f-photo');
+  if (photoInput){
+    photoInput.addEventListener('change', e=>{
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev=>{
+        photoData = ev.target.result;
+        const prev = document.getElementById('photo-prev');
+        prev.src = photoData; prev.style.display='block';
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if (cat === 'coffee') attachBrewLogListeners();
+}
+
+function openForm(cat, id){
+  editingId = id;
+  currentCategory = cat;
+  const item = id ? db[cat].find(i=>i.id===id) : null;
+  document.getElementById('modal-title').textContent = (id? 'Edit ' : 'Add ') + (cat==='coffee'?'coffee bean':'bottle');
+  document.getElementById('modal-body').innerHTML = (cat==='coffee' ? coffeeFormHTML(item) : whiskyFormHTML(item)) + `
+    <div class="actions-row">
+      ${id ? '<button class="secondary" onclick="deleteItem(\''+cat+'\',\''+id+'\')">Delete</button>' : ''}
+      <button onclick="submitForm()">Save</button>
+    </div>`;
+  attachFormListeners(cat);
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function submitForm(){
+  const name = document.getElementById('f-name').value.trim();
+  if (!name){ alert('Please enter a name.'); return; }
+  const item = {
+    id: editingId || uid(),
+    name,
+    brand: document.getElementById('f-brand').value.trim(),
+    origin: document.getElementById('f-origin').value.trim(),
+    process: document.getElementById('f-process').value,
+    roast: document.getElementById('f-roast').value,
+    roastDate: document.getElementById('f-roastdate').value,
+    price: parseFloat(document.getElementById('f-price').value) || 0,
+    status: document.getElementById('f-status').value,
+    rating: parseFloat(document.getElementById('f-rating').value),
+    flavors: [...selectedFlavors],
+    notes: document.getElementById('f-notes').value.trim(),
+    photo: photoData,
+    createdAt: editingId ? (db[currentCategory].find(i=>i.id===editingId)?.createdAt || Date.now()) : Date.now()
+  };
+  if (currentCategory === 'coffee') item.brewLogs = [...brewLogs];
+  const arr = db[currentCategory];
+  const idx = arr.findIndex(i=>i.id===item.id);
+  if (idx>=0) arr[idx] = item; else arr.push(item);
+  save();
+  closeForm();
+  renderList(currentCategory);
+}
+
+function deleteItem(cat, id){
+  if (!confirm('Delete this item?')) return;
+  db[cat] = db[cat].filter(i=>i.id!==id);
+  save();
+  closeForm();
+  document.getElementById('detail-overlay').classList.remove('active');
+  renderList(cat);
+}
+
+function openDetail(cat, id){
+  const item = db[cat].find(i=>i.id===id);
+  if (!item) return;
+  document.getElementById('detail-title').textContent = item.name;
+  const fields = cat==='coffee' ?
+    [['Roaster',item.brand],['Origin',item.origin],['Process',item.process],['Roast level',item.roast],['Roast date',item.roastDate],['Price paid','HKD '+(item.price||0)],['Status',statusLabel(item.status)]] :
+    [['Distillery',item.brand],['Region',item.origin],['Type',item.process],['ABV', item.roast?item.roast+'%':''],['Age', item.roastDate],['Price paid','HKD '+(item.price||0)],['Status',statusLabel(item.status)]];
+  let brewLogsHTML = '';
+  if (cat==='coffee' && item.brewLogs && item.brewLogs.length){
+    brewLogs = item.brewLogs;
+    brewLogsHTML = `<div class="section-divider"><h3>Pour-Over Brew Log (${item.brewLogs.length})</h3></div>${renderBrewLogsListReadonly(item.brewLogs)}`;
+  }
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-hero ${cat}"><h2>${item.name}</h2></div>
+    <div class="stars" style="font-size:16px">${item.rating?starStr(item.rating):'Not rated yet'}</div>
+    <div class="tags" style="margin-bottom:10px">${(item.flavors||[]).map(f=>`<span class="tag">${f}</span>`).join('')}</div>
+    ${fields.filter(f=>f[1]).map(([k,v])=>`<div class="detail-row"><span>${k}</span><span>${v}</span></div>`).join('')}
+    ${item.notes ? `<div class="notes-box">${item.notes}</div>` : ''}
+    ${item.photo ? `<img src="${item.photo}" class="photo-preview" style="display:block; height:180px; margin-top:12px">` : ''}
+    ${brewLogsHTML}
+    <div class="actions-row">
+      <button class="secondary" onclick="document.getElementById('detail-overlay').classList.remove('active'); openForm('${cat}','${id}')">Edit</button>
+      <button onclick="document.getElementById('detail-overlay').classList.remove('active')">Close</button>
+    </div>
+  `;
+  document.getElementById('detail-overlay').classList.add('active');
+}
+
+function renderBrewLogsListReadonly(logs){
+  return logs.map(b=>`
+    <div class="brew-log-card">
+      <div class="brew-header"><span>${b.date || ''} · ${b.gear}</span></div>
+      <div class="brew-log-grid">
+        <div><b>Dose:</b> ${b.dose||'—'}g</div><div><b>Water:</b> ${b.water||'—'}ml</div>
+        <div><b>Ratio:</b> 1:${b.dose && b.water ? (b.water/b.dose).toFixed(1) : '—'}</div><div><b>Temp:</b> ${b.temp||'—'}°C</div>
+        <div><b>Grind:</b> ${b.grind||'—'}</div><div><b>Filter:</b> ${b.filter||'—'}</div>
+        <div><b>Bloom:</b> ${b.bloom||'—'}s</div><div><b>Total time:</b> ${b.time||'—'}</div>
+      </div>
+      ${b.technique ? `<div style="font-size:12px; margin-top:6px; color:var(--muted)"><b style="color:var(--navy)">Technique:</b> ${b.technique}</div>` : ''}
+      ${b.result ? `<div style="font-size:12px; margin-top:4px; color:var(--muted)"><b style="color:var(--navy)">Result:</b> ${b.result}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+document.getElementById('detail-close').addEventListener('click', ()=>document.getElementById('detail-overlay').classList.remove('active'));
+document.getElementById('detail-overlay').addEventListener('click', e=>{ if(e.target.id==='detail-overlay') e.currentTarget.classList.remove('active'); });
+
+// ---------- SCAN: CAMERA + UPLOAD ----------
+document.getElementById('coffee-scan-barcode').addEventListener('click', ()=>startScan('coffee','barcode'));
+document.getElementById('coffee-scan-label').addEventListener('click', ()=>startScan('coffee','label'));
+document.getElementById('whisky-scan-barcode').addEventListener('click', ()=>startScan('whisky','barcode'));
+document.getElementById('whisky-scan-label').addEventListener('click', ()=>startScan('whisky','label'));
+document.getElementById('scan-close').addEventListener('click', stopScan);
+document.getElementById('scan-cancel').addEventListener('click', stopScan);
+document.getElementById('scan-upload-btn').addEventListener('click', ()=>document.getElementById('scan-file-input').click());
+document.getElementById('scan-file-input').addEventListener('change', handleUploadedImage);
+
+async function startScan(cat, mode){
+  scanTargetCat = cat;
+  scanMode = mode;
+  document.getElementById('scan-title').textContent = mode==='barcode' ? 'Scan Barcode' : 'Scan Label Text';
+  document.getElementById('scan-status').textContent = mode==='barcode'
+    ? (barcodeDetectorSupported ? 'Point your camera at the barcode, or upload a photo below' : 'Live barcode scan not supported on this browser — upload a photo below')
+    : 'Frame the label, tap Capture, or upload a photo below';
+  document.getElementById('scan-upload-preview').style.display = 'none';
+  document.getElementById('scan-file-input').value = '';
+  document.getElementById('scan-overlay').classList.add('active');
+  document.getElementById('scan-video').style.display = 'block';
+  document.getElementById('scan-capture').style.display = 'inline-block';
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('scan-video');
+    video.srcObject = scanStream;
+    if (mode==='barcode' && barcodeDetectorSupported) runBarcodeLoop();
+  }catch(err){
+    document.getElementById('scan-status').textContent = 'Camera unavailable — use "Upload Image Instead" below.';
+    document.getElementById('scan-video').style.display = 'none';
+    document.getElementById('scan-capture').style.display = 'none';
+  }
+}
+
+function stopScan(){
+  if (scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream = null; }
+  barcodeLoopActive = false;
+  document.getElementById('scan-overlay').classList.remove('active');
+}
+
+let barcodeLoopActive = false;
+async function runBarcodeLoop(){
+  barcodeLoopActive = true;
+  const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128'] });
+  const video = document.getElementById('scan-video');
+  async function loop(){
+    if (!barcodeLoopActive || !scanStream) return;
+    try{
+      const codes = await detector.detect(video);
+      if (codes.length){
+        barcodeLoopActive = false;
+        const code = codes[0].rawValue;
+        document.getElementById('scan-status').textContent = 'Found barcode: ' + code + ' — looking up...';
+        await lookupBarcode(code);
+        stopScan();
+        return;
+      }
+    }catch(e){}
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+document.getElementById('scan-capture').addEventListener('click', async ()=>{
+  const video = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/png');
+  await processCapturedImage(dataUrl, canvas);
+});
+
+async function handleUploadedImage(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result;
+    const preview = document.getElementById('scan-upload-preview');
+    preview.src = dataUrl; preview.style.display = 'block';
+    document.getElementById('scan-status').textContent = 'Processing uploaded image...';
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.getElementById('scan-canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      await processCapturedImage(dataUrl, canvas);
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function processCapturedImage(dataUrl, canvas){
+  if (scanMode === 'barcode'){
+    barcodeLoopActive = false;
+    if (barcodeDetectorSupported){
+      try{
+        const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128'] });
+        const bitmap = await createImageBitmap(canvas);
+        const codes = await detector.detect(bitmap);
+        if (codes.length){
+          document.getElementById('scan-status').textContent = 'Found: ' + codes[0].rawValue + ' — looking up...';
+          await lookupBarcode(codes[0].rawValue);
+          stopScan();
+          return;
+        }
+      }catch(e){}
+    }
+    const manual = prompt('Could not auto-detect a barcode in this image. Enter the number manually:');
+    if (manual){ await lookupBarcode(manual.trim()); }
+    stopScan();
+  } else {
+    document.getElementById('scan-status').textContent = 'Reading label text...';
+    try{
+      const result = await Tesseract.recognize(dataUrl, 'eng');
+      const text = result.data.text.trim();
+      stopScan();
+      applyOcrText(scanTargetCat, text, dataUrl);
+    }catch(e){
+      document.getElementById('scan-status').textContent = 'OCR failed: ' + e.message;
+    }
+  }
+}
+
+async function lookupBarcode(code){
+  let productInfo = null;
+  try{
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`);
+    const data = await res.json();
+    if (data.status === 1){
+      productInfo = {
+        name: data.product.product_name || data.product.generic_name || '',
+        brand: data.product.brands || '',
+        origin: data.product.origins || data.product.countries || '',
+        photo: data.product.image_url || ''
+      };
+    }
+  }catch(e){}
+  openForm(scanTargetCat, null);
+  setTimeout(()=>{
+    if (productInfo && productInfo.name){
+      document.getElementById('f-name').value = productInfo.name;
+      document.getElementById('f-brand').value = productInfo.brand;
+      document.getElementById('f-origin').value = productInfo.origin;
+      if (productInfo.photo){ photoData = productInfo.photo; const p=document.getElementById('photo-prev'); p.src=photoData; p.style.display='block'; }
+      alert('Product found and pre-filled from barcode ' + code + '. Please review and complete remaining details.');
+    } else {
+      document.getElementById('f-notes').value = 'Barcode: ' + code + ' (no online match found — please fill in details manually)';
+      alert('No product match found for barcode ' + code + '. Fields left blank for manual entry.');
+    }
+  }, 50);
+}
+
+function applyOcrText(cat, text, photoUrl){
+  openForm(cat, null);
+  setTimeout(()=>{
+    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+    if (lines.length){ document.getElementById('f-name').value = lines[0]; }
+    document.getElementById('f-notes').value = 'Scanned label text:\n' + text;
+    if (photoUrl){ photoData = photoUrl; const p=document.getElementById('photo-prev'); p.src=photoData; p.style.display='block'; }
+    alert('Label scanned. Review the auto-filled name and full recognized text in notes — edit as needed.');
+  }, 50);
+}
+
+// ---------- INSIGHTS ----------
+function renderInsights(){
+  const coffee = db.coffee, whisky = db.whisky;
+  const allRated = [...coffee, ...whisky].filter(i=>i.rating);
+  const totalSpend = [...coffee, ...whisky].reduce((s,i)=>s+(i.price||0),0);
+  const flavorCount = {};
+  allRated.forEach(i=>(i.flavors||[]).forEach(f=>flavorCount[f]=(flavorCount[f]||0)+1));
+  const topFlavors = Object.entries(flavorCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topOverall = allRated.slice().sort((a,b)=>b.rating-a.rating).slice(0,5);
+  const totalBrews = coffee.reduce((s,c)=>s+(c.brewLogs?c.brewLogs.length:0),0);
+
+  document.getElementById('insights-content').innerHTML = `
+    <div class="stat-row">
+      <div class="stat"><div class="num">${coffee.length + whisky.length}</div><div class="lbl">Total items</div></div>
+      <div class="stat"><div class="num">HKD ${totalSpend.toLocaleString()}</div><div class="lbl">Total spend</div></div>
+      <div class="stat"><div class="num">${allRated.length}</div><div class="lbl">Rated items</div></div>
+      <div class="stat"><div class="num">${totalBrews}</div><div class="lbl">Brew logs</div></div>
+    </div>
+    <div class="section-divider"><h3>Your favorite flavor notes</h3></div>
+    <div class="tags">${topFlavors.length ? topFlavors.map(([f,c])=>`<span class="tag">${f} (${c})</span>`).join('') : '<span class="tag">Rate some items to see patterns</span>'}</div>
+    <div class="section-divider"><h3>Top rated overall</h3></div>
+    <div class="grid">
+      ${topOverall.map(it=>`
+        <div class="card" onclick="openDetail('${coffee.includes(it)?'coffee':'whisky'}','${it.id}')">
+          <div class="badge">${coffee.includes(it)?'C':'W'}</div>
+          <h3>${it.name}</h3>
+          <div class="sub">${it.brand||''}</div>
+          <div class="stars">${starStr(it.rating)}</div>
+        </div>`).join('') || '<div class="empty">No rated items yet</div>'}
+    </div>
+  `;
+}
+
+// ---------- INIT ----------
+renderList('coffee');
+renderList('whisky');
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+
+let deferredInstallPrompt = null;
+const installBanner = document.getElementById('install-banner');
+const installText = document.getElementById('install-text');
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+if (!isStandalone) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBanner.classList.add('show');
+  });
+
+  if (isIOS) {
+    installText.textContent = 'Install Cellar & Cup: tap the Share icon, then "Add to Home Screen" for a full-screen app experience.';
+    document.getElementById('install-btn').style.display = 'none';
+    setTimeout(()=>installBanner.classList.add('show'), 1500);
+  }
+}
+
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  installBanner.classList.remove('show');
+});
+
+document.getElementById('install-dismiss').addEventListener('click', () => {
+  installBanner.classList.remove('show');
+});
+</script>
+</body>
+</html>
