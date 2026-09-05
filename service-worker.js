@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cellar-cup-v4';
+const CACHE_NAME = 'cellar-cup-v5';
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 const PASSTHROUGH_DOMAINS = ['openfoodfacts.org','jsdelivr.net','unpkg.com','tessdata.projectnaptha.com'];
 
@@ -14,14 +14,11 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  // Never intercept external OCR / barcode lookup resources - pure network pass-through,
-  // no caching attempts, to avoid opaque-response cache errors breaking Tesseract.js loads.
   if (PASSTHROUGH_DOMAINS.some(d => req.url.includes(d))) {
     event.respondWith(fetch(req));
     return;
   }
 
-  // Network-first for the HTML shell so app updates are picked up immediately.
   if (req.mode === 'navigate' || req.url.endsWith('index.html') || req.url.endsWith('/')) {
     event.respondWith(
       fetch(req).then(res => {

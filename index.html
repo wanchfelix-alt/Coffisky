@@ -296,13 +296,14 @@ const POUR_OVER_GEAR = ['Hario V60','Kalita Wave','Chemex','Origami','Aeropress'
 const FILTER_TYPES = ['Paper - bleached','Paper - unbleached','Cloth','Metal mesh','Abaca'];
 const GRIND_SIZES = ['Extra Fine','Fine','Medium-Fine','Medium','Medium-Coarse','Coarse'];
 
-// Explicit pinned CDN paths for Tesseract.js — avoids version auto-detection failures
-// and silent hangs caused by default CDN resolution or SW interception.
+// Pinned CDN paths for Tesseract.js. workerBlobURL is intentionally left at its
+// default (true) — Safari/WebKit blocks instantiating a Worker directly from a
+// cross-origin script URL, so Tesseract.js must fetch + wrap it in a same-origin
+// Blob URL to work on iOS. Disabling this breaks label scanning on iPhone/iPad.
 const TESSERACT_OPTIONS = {
   workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.4/dist/worker.min.js',
   corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v5.0.0',
-  langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-  workerBlobURL: false
+  langPath: 'https://tessdata.projectnaptha.com/4.0.0'
 };
 
 let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || { coffee: [], whisky: [] };
@@ -826,29 +827,29 @@ async function processCapturedImage(dataUrl, canvas){
   }
 }
 
-async function runOcr(dataUrl){
-  const statusEl = document.getElementById('scan-status');
-  statusEl.textContent = 'Loading OCR engine...';
+function extractErrorMessage(err){
+  if (!err) return 'unknown error';
+  if (typeof err === 'string') return err;
+  if (err.message) return err.message;
+  try{ return JSON.stringify(err); }catch(e){ return String(err); }
+}
 
-  // Safety timeout: if OCR hasn't resolved in 30s, surface an actionable error instead of hanging forever.
+async function runOcr(dataUrl, isRetry){
+  const statusEl = document.getElementById('scan-status');
+  statusEl.textContent = isRetry ? 'Retrying with default OCR settings...' : 'Loading OCR engine...';
+
   let timedOut = false;
   const timeoutId = setTimeout(() => {
     timedOut = true;
-    statusEl.textContent = 'This is taking too long — check your internet connection, then try Upload Image again.';
+    statusEl.textContent = 'This is taking too long — check your internet connection, then try again.';
   }, 30000);
 
   try{
-    const result = await Tesseract.recognize(dataUrl, 'eng', {
-      ...TESSERACT_OPTIONS,
-      logger: m => {
-        if (timedOut) return;
-        if (m.status === 'recognizing text' && m.progress != null){
-          statusEl.textContent = 'Reading label text... ' + Math.round(m.progress * 100) + '%';
-        } else if (m.status){
-          statusEl.textContent = m.status.charAt(0).toUpperCase() + m.status.slice(1) + '...';
-        }
-      }
-    });
+    const options = isRetry
+      ? { logger: m => onOcrProgress(m, statusEl, timedOut) }
+      : { ...TESSERACT_OPTIONS, logger: m => onOcrProgress(m, statusEl, timedOut) };
+
+    const result = await Tesseract.recognize(dataUrl, 'eng', options);
     clearTimeout(timeoutId);
     if (timedOut) return;
     const text = (result?.data?.text || '').trim();
@@ -861,9 +862,26 @@ async function runOcr(dataUrl){
     applyOcrText(scanTargetCat, text, dataUrl);
   }catch(err){
     clearTimeout(timeoutId);
-    console.error('OCR error:', err);
-    statusEl.textContent = 'OCR failed: ' + (err?.message || 'unknown error') + '. Try again or enter details manually.';
-    alert('Label scanning failed (' + (err?.message || 'unknown error') + '). This is usually a temporary network/CDN issue — try again, or tap "Upload Image Instead" with a different photo. You can always fill in details manually via +.');
+    const msg = extractErrorMessage(err);
+    console.error('OCR error (isRetry=' + !!isRetry + '):', err);
+    if (!isRetry){
+      // First attempt with pinned CDN paths failed - retry once with library defaults,
+      // in case the pinned version mismatched or that specific CDN path had an issue.
+      statusEl.textContent = 'First attempt failed (' + msg + ') — retrying with default settings...';
+      await runOcr(dataUrl, true);
+      return;
+    }
+    statusEl.textContent = 'OCR failed: ' + msg + '. Try again or enter details manually.';
+    alert('Label scanning failed after two attempts (' + msg + '). This can happen on flaky connections. Try again, use "Upload Image Instead" with a clearer photo, or tap + to enter details manually.');
+  }
+}
+
+function onOcrProgress(m, statusEl, timedOut){
+  if (timedOut) return;
+  if (m.status === 'recognizing text' && m.progress != null){
+    statusEl.textContent = 'Reading label text... ' + Math.round(m.progress * 100) + '%';
+  } else if (m.status){
+    statusEl.textContent = m.status.charAt(0).toUpperCase() + m.status.slice(1) + '...';
   }
 }
 
