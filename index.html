@@ -165,6 +165,7 @@ button.small{padding:7px 11px; font-size:11px;}
 .install-banner p{font-size:12.5px; line-height:1.4;}
 .install-banner button{white-space:nowrap;}
 .install-banner .dismiss{background:none; color:#c8cfe0; font-size:20px; padding:0 4px; text-transform:none;}
+.ocr-key-note{background:var(--cream); border:1.5px dashed var(--rust); border-radius:8px; padding:10px 12px; font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5;}
 </style>
 </head>
 <body>
@@ -286,7 +287,6 @@ button.small{padding:7px 11px; font-size:11px;}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
 <script>
 const STORAGE_KEY = 'cellar_cup_data_v2';
 
@@ -296,15 +296,13 @@ const POUR_OVER_GEAR = ['Hario V60','Kalita Wave','Chemex','Origami','Aeropress'
 const FILTER_TYPES = ['Paper - bleached','Paper - unbleached','Cloth','Metal mesh','Abaca'];
 const GRIND_SIZES = ['Extra Fine','Fine','Medium-Fine','Medium','Medium-Coarse','Coarse'];
 
-// Pinned CDN paths for Tesseract.js. workerBlobURL is intentionally left at its
-// default (true) — Safari/WebKit blocks instantiating a Worker directly from a
-// cross-origin script URL, so Tesseract.js must fetch + wrap it in a same-origin
-// Blob URL to work on iOS. Disabling this breaks label scanning on iPhone/iPad.
-const TESSERACT_OPTIONS = {
-  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.4/dist/worker.min.js',
-  corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v5.0.0',
-  langPath: 'https://tessdata.projectnaptha.com/4.0.0'
-};
+// Cloud OCR via OCR.space — runs recognition server-side, avoiding the WASM/Worker
+// restrictions that make client-side Tesseract.js unreliable on iOS Safari.
+// The shared demo key "helloworld" is rate-limited (heavily shared, ~500 reqs/day globally).
+// Get your own FREE personal key (25,000 requests/month, no credit card) at:
+// https://ocr.space/ocrapi/freekey  — then replace the value below.
+const OCR_SPACE_API_KEY = 'helloworld';
+const OCR_SPACE_URL = 'https://api.ocr.space/parse/image';
 
 let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || { coffee: [], whisky: [] };
 let currentCategory = 'coffee';
@@ -778,7 +776,7 @@ document.getElementById('scan-capture').addEventListener('click', async ()=>{
   const canvas = document.getElementById('scan-canvas');
   canvas.width = video.videoWidth; canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0);
-  const dataUrl = canvas.toDataURL('image/png');
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
   await processCapturedImage(dataUrl, canvas);
 });
 
@@ -796,7 +794,9 @@ async function handleUploadedImage(e){
       const canvas = document.getElementById('scan-canvas');
       canvas.width = img.width; canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
-      await processCapturedImage(dataUrl, canvas);
+      // Re-encode as JPEG for OCR upload — keeps payload small and universally accepted.
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      await processCapturedImage(jpegDataUrl, canvas);
     };
     img.src = dataUrl;
   };
@@ -834,26 +834,45 @@ function extractErrorMessage(err){
   try{ return JSON.stringify(err); }catch(e){ return String(err); }
 }
 
-async function runOcr(dataUrl, isRetry){
+async function runOcr(dataUrl){
   const statusEl = document.getElementById('scan-status');
-  statusEl.textContent = isRetry ? 'Retrying with default OCR settings...' : 'Loading OCR engine...';
+  statusEl.textContent = 'Uploading to OCR service...';
 
   let timedOut = false;
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     timedOut = true;
-    statusEl.textContent = 'This is taking too long — check your internet connection, then try again.';
-  }, 30000);
+    controller.abort();
+    statusEl.textContent = 'Request timed out — check your connection and try again.';
+  }, 25000);
 
   try{
-    const options = isRetry
-      ? { logger: m => onOcrProgress(m, statusEl, timedOut) }
-      : { ...TESSERACT_OPTIONS, logger: m => onOcrProgress(m, statusEl, timedOut) };
+    const formData = new FormData();
+    formData.append('base64Image', dataUrl);
+    formData.append('language', 'auto');
+    formData.append('OCREngine', '2');
+    formData.append('scale', 'true');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('apikey', OCR_SPACE_API_KEY);
 
-    const result = await Tesseract.recognize(dataUrl, 'eng', options);
+    statusEl.textContent = 'Reading label text...';
+    const res = await fetch(OCR_SPACE_URL, { method: 'POST', body: formData, signal: controller.signal });
     clearTimeout(timeoutId);
     if (timedOut) return;
-    const text = (result?.data?.text || '').trim();
+
+    if (!res.ok){
+      throw new Error('OCR service returned HTTP ' + res.status);
+    }
+    const data = await res.json();
+
+    if (data.IsErroredOnProcessing){
+      const apiMsg = Array.isArray(data.ErrorMessage) ? data.ErrorMessage.join('; ') : (data.ErrorMessage || 'processing error');
+      throw new Error(apiMsg);
+    }
+
+    const text = (data?.ParsedResults?.[0]?.ParsedText || '').trim();
     stopScan();
+
     if (!text){
       alert('No readable text was found in that image. Try a clearer, well-lit photo of the label, or enter details manually.');
       openForm(scanTargetCat, null);
@@ -862,26 +881,17 @@ async function runOcr(dataUrl, isRetry){
     applyOcrText(scanTargetCat, text, dataUrl);
   }catch(err){
     clearTimeout(timeoutId);
+    if (timedOut) return;
     const msg = extractErrorMessage(err);
-    console.error('OCR error (isRetry=' + !!isRetry + '):', err);
-    if (!isRetry){
-      // First attempt with pinned CDN paths failed - retry once with library defaults,
-      // in case the pinned version mismatched or that specific CDN path had an issue.
-      statusEl.textContent = 'First attempt failed (' + msg + ') — retrying with default settings...';
-      await runOcr(dataUrl, true);
-      return;
-    }
-    statusEl.textContent = 'OCR failed: ' + msg + '. Try again or enter details manually.';
-    alert('Label scanning failed after two attempts (' + msg + '). This can happen on flaky connections. Try again, use "Upload Image Instead" with a clearer photo, or tap + to enter details manually.');
-  }
-}
-
-function onOcrProgress(m, statusEl, timedOut){
-  if (timedOut) return;
-  if (m.status === 'recognizing text' && m.progress != null){
-    statusEl.textContent = 'Reading label text... ' + Math.round(m.progress * 100) + '%';
-  } else if (m.status){
-    statusEl.textContent = m.status.charAt(0).toUpperCase() + m.status.slice(1) + '...';
+    console.error('OCR error:', err);
+    statusEl.textContent = 'OCR failed: ' + msg;
+    const isRateLimit = /rate|limit|arcxlimit|exceeded/i.test(msg);
+    alert(
+      'Label scanning failed (' + msg + ').' +
+      (isRateLimit
+        ? ' The shared demo key has hit its daily limit — get your own free key at ocr.space/ocrapi/freekey and it will work again immediately.'
+        : ' Try again, use "Upload Image Instead" with a clearer photo, or tap + to enter details manually.')
+    );
   }
 }
 

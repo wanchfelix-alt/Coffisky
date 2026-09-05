@@ -1,6 +1,6 @@
-const CACHE_NAME = 'cellar-cup-v5';
+const CACHE_NAME = 'cellar-cup-v6';
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
-const PASSTHROUGH_DOMAINS = ['openfoodfacts.org','jsdelivr.net','unpkg.com','tessdata.projectnaptha.com'];
+const PASSTHROUGH_DOMAINS = ['openfoodfacts.org','ocr.space'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
@@ -12,12 +12,13 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const req = event.request;
-  if (req.method !== 'GET') return;
+  if (req.method !== 'GET' && req.method !== 'POST') return;
 
   if (PASSTHROUGH_DOMAINS.some(d => req.url.includes(d))) {
     event.respondWith(fetch(req));
     return;
   }
+  if (req.method !== 'GET') return;
 
   if (req.mode === 'navigate' || req.url.endsWith('index.html') || req.url.endsWith('/')) {
     event.respondWith(
